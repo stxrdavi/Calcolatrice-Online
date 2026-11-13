@@ -1,0 +1,802 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Calcolatrice online con percentuali, parentesi, radice quadrata e cronologia dei calcoli.">
+  <meta name="theme-color" content="#101217">
+  <title>Calcolatrice Online</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: "Inter", system-ui, sans-serif;
+      --base: #101217;
+      --panel: #191c23;
+      --line: #2c303b;
+      --text: #f3f5fa;
+      --muted: #a8b0c0;
+      --accent: #dafa82;
+      --number: #262a34;
+      --function: #20232c;
+      --operator: #353d2a;
+      --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 280px;
+      min-height: 100vh;
+      background: radial-gradient(ellipse at 29% 9%, #24291f 0%, transparent 45%), var(--base);
+      color: var(--text);
+    }
+    button { font: inherit; color: inherit; cursor: pointer; }
+    button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    button:disabled { opacity: .42; cursor: default; }
+    [hidden] { display: none !important; }
+    svg { width: 20px; height: 20px; flex-shrink: 0; }
+
+    .shell { width: min(100% - 56px, 1060px); margin: 0 auto; }
+    .topbar {
+      min-height: 82px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .brand { display: flex; align-items: center; gap: 12px; font-size: 15px; font-weight: 700; }
+    .brand-icon {
+      display: grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: var(--accent);
+      color: #1c2513;
+    }
+    .utility {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 0 13px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: var(--panel);
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .utility:not(:disabled):hover { color: var(--text); border-color: #70798b; }
+    .utility svg { width: 17px; height: 17px; }
+
+    main { padding: 46px 0 48px; }
+    h1 {
+      margin: 0 0 27px;
+      font-size: clamp(2.25rem, 6vw, 4.25rem);
+      font-weight: 700;
+      line-height: 1.04;
+      letter-spacing: -.065em;
+    }
+    h1 span { color: var(--accent); }
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+      align-items: stretch;
+      gap: 18px;
+    }
+    .calculator, .history {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--panel);
+    }
+    .calculator { padding: 18px; }
+    .screen {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: 131px;
+      margin-bottom: 15px;
+      padding: 20px 18px;
+      border: 1px solid #3b4731;
+      border-radius: 13px;
+      background: linear-gradient(135deg, #222b21, #151c17 72%);
+      text-align: right;
+      font-family: var(--mono);
+    }
+    .expression {
+      min-height: 1.5em;
+      margin: 0 0 3px 34px;
+      overflow-x: auto;
+      white-space: nowrap;
+      scrollbar-width: none;
+      color: #c0c9b8;
+      font-size: 14px;
+    }
+    .display {
+      display: block;
+      width: 100%;
+      overflow-x: auto;
+      white-space: nowrap;
+      scrollbar-width: none;
+      color: var(--accent);
+      font-size: clamp(1.9rem, 6vw, 3.55rem);
+      font-weight: 600;
+      line-height: 1.16;
+      letter-spacing: -.055em;
+      font-variant-numeric: tabular-nums;
+    }
+    .error { margin: 5px 0 0; color: #ffc4ae; font: 13px/1.4 "Inter", system-ui, sans-serif; }
+    .copy {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      min-width: 34px;
+      min-height: 34px;
+      padding: 0;
+      background: #222b23;
+      border-color: #465141;
+    }
+    .copy[data-copied] { color: var(--accent); }
+    .copy .check-icon, .copy[data-copied] .copy-icon { display: none; }
+    .copy[data-copied] .check-icon { display: block; }
+
+    .keypad { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+    .key {
+      display: grid;
+      place-items: center;
+      min-height: 50px;
+      padding: 0;
+      border: 1px solid #353947;
+      border-radius: 10px;
+      background: var(--number);
+      font-family: var(--mono);
+      font-size: 21px;
+      line-height: 1;
+      touch-action: manipulation;
+      transition: background .15s, border-color .15s, transform .15s;
+    }
+    .key:hover { background: #363c4a; border-color: #656d7f; }
+    .key:active { transform: translateY(1px); }
+    .key.function { background: var(--function); color: #c7cedc; font-size: 18px; }
+    .key.function:hover { background: #303643; }
+    .key.clear { color: #ffc2ae; }
+    .key.operator { background: var(--operator); border-color: #48523a; color: var(--accent); }
+    .key.operator:hover { background: #444f33; border-color: #73834f; }
+    .key.equals { background: var(--accent); color: #1d2614; border-color: var(--accent); font-weight: 800; }
+    .key.equals:hover { background: #e8ffa9; }
+
+    .history { display: flex; flex-direction: column; max-height: 524px; }
+    .history-head {
+      min-height: 65px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin: 0 17px;
+      border-bottom: 1px solid var(--line);
+    }
+    .history-head h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 16px; }
+    .history-head h2 svg { color: var(--accent); }
+    .history-head .utility { min-height: 36px; padding: 0 9px; }
+    .history-body { display: flex; flex: 1; min-height: 0; }
+    .empty { align-self: center; width: 100%; padding: 24px 16px; text-align: center; }
+    .empty-icon {
+      display: grid;
+      place-items: center;
+      width: 54px;
+      height: 54px;
+      margin: 0 auto 15px;
+      border: 1px solid #394132;
+      border-radius: 14px;
+      background: #262c24;
+      color: var(--accent);
+    }
+    .empty p { margin: 0; font-size: 15px; font-weight: 600; }
+    .empty p + p { margin-top: 7px; color: var(--muted); font-size: 13px; font-weight: 400; }
+    .history-list {
+      width: 100%;
+      min-height: 0;
+      max-height: 443px;
+      margin: 0;
+      padding: 10px 17px 16px;
+      overflow-y: auto;
+      list-style: none;
+    }
+    .history-list li + li { border-top: 1px solid var(--line); }
+    .history-item {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      width: 100%;
+      padding: 12px 8px;
+      border: 0;
+      border-radius: 7px;
+      background: transparent;
+      text-align: right;
+      font-family: var(--mono);
+    }
+    .history-item:hover { background: #272d37; }
+    .history-item span { width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .history-item .previous { color: var(--muted); font-size: 13px; }
+    .history-item .answer { color: var(--accent); font-size: 20px; }
+    .hint { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin: 17px 0 0; color: var(--muted); font-size: 12px; }
+    kbd { padding: 2px 5px; border: 1px solid #454b59; border-radius: 4px; color: var(--text); font: 11px var(--mono); }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+    dialog {
+      width: min(440px, 100% - 36px);
+      max-height: 90vh;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--panel);
+      color: var(--text);
+    }
+    dialog::backdrop { background: #090b11bd; }
+    .dialog-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .dialog-head h2 { margin: 0; font-size: 20px; }
+    .dialog-head .utility { min-width: 42px; padding: 0; }
+    .shortcuts { margin: 14px 0 0; }
+    .shortcuts div {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 0;
+      border-top: 1px solid var(--line);
+      font-size: 14px;
+    }
+    .shortcuts dd { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; margin: 0; }
+
+    @media (max-width: 720px) {
+      .shell { width: min(100% - 32px, 520px); }
+      .topbar { min-height: 68px; }
+      main { padding-top: 31px; }
+      h1 { margin-bottom: 21px; }
+      .workspace { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+      .calculator { padding: 12px; }
+      .screen { min-height: 112px; margin-bottom: 11px; padding-right: 13px; }
+      .keypad { gap: 7px; }
+      .history { min-height: 196px; max-height: 335px; }
+      .history-head { min-height: 57px; }
+    }
+
+    @media (max-width: 365px) {
+      .shell { width: calc(100% - 20px); }
+      .brand { gap: 7px; font-size: 13px; }
+      .utility { padding-inline: 8px; }
+      .history-head { margin-inline: 12px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .key { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 11h1m6 0h1m-8 3h1m6 0h1m-8 3h1m6 0h1"/>
+          </svg>
+        </span>
+        Calcolatrice
+      </div>
+      <button type="button" class="utility" id="open-shortcuts" aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+          <rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M6.5 9h.01m3.7 0h.01m3.7 0h.01m3.7 0h.01M6.5 13h.01m11.1 0h.01M10 15h4"/>
+        </svg>
+        Tastiera
+      </button>
+    </header>
+
+    <main>
+      <h1>Calcolatrice <span>online</span></h1>
+      <div class="workspace">
+        <section class="calculator" aria-label="Calcolatrice">
+          <div class="screen">
+            <button type="button" class="utility copy" id="copy-result" aria-label="Copia risultato" title="Copia risultato" disabled>
+              <svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true">
+                <rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 5V4H4v12h1"/>
+              </svg>
+              <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="m5 12 4 4L19 6"/>
+              </svg>
+            </button>
+            <p class="expression" id="previous-expression" aria-hidden="true"></p>
+            <output class="display" id="display" aria-label="Schermo della calcolatrice" aria-live="off">0</output>
+            <p class="error" id="error" hidden></p>
+            <span class="sr-only" id="status" role="status"></span>
+          </div>
+
+          <div class="keypad" id="keypad">
+            <button type="button" class="key function" data-value="(" aria-label="Apri parentesi">(</button>
+            <button type="button" class="key function" data-value=")" aria-label="Chiudi parentesi">)</button>
+            <button type="button" class="key function" data-action="root" aria-label="Radice quadrata">√</button>
+            <button type="button" class="key function" data-value="²" aria-label="Eleva al quadrato">x²</button>
+
+            <button type="button" class="key function clear" data-action="clear" aria-label="Azzera">AC</button>
+            <button type="button" class="key function" data-action="backspace" aria-label="Cancella ultimo carattere">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M9 5h11a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H9l-6-7zM12 9l5 6m0-6-5 6"/>
+              </svg>
+            </button>
+            <button type="button" class="key function" data-value="%" aria-label="Percentuale">%</button>
+            <button type="button" class="key operator" data-value="/" aria-label="Dividi">÷</button>
+
+            <button type="button" class="key" data-value="7">7</button>
+            <button type="button" class="key" data-value="8">8</button>
+            <button type="button" class="key" data-value="9">9</button>
+            <button type="button" class="key operator" data-value="*" aria-label="Moltiplica">×</button>
+
+            <button type="button" class="key" data-value="4">4</button>
+            <button type="button" class="key" data-value="5">5</button>
+            <button type="button" class="key" data-value="6">6</button>
+            <button type="button" class="key operator" data-value="-" aria-label="Sottrai">−</button>
+
+            <button type="button" class="key" data-value="1">1</button>
+            <button type="button" class="key" data-value="2">2</button>
+            <button type="button" class="key" data-value="3">3</button>
+            <button type="button" class="key operator" data-value="+" aria-label="Somma">+</button>
+
+            <button type="button" class="key function" data-action="sign" aria-label="Cambia segno">±</button>
+            <button type="button" class="key" data-value="0">0</button>
+            <button type="button" class="key" data-value="." aria-label="Virgola decimale">,</button>
+            <button type="button" class="key equals" data-action="equals" aria-label="Calcola risultato">=</button>
+          </div>
+        </section>
+
+        <aside class="history" aria-labelledby="history-title">
+          <div class="history-head">
+            <h2 id="history-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 5v5h5"/><path d="M3.7 10a8.5 8.5 0 1 1 .8 7M12 7.5V12l3 2"/>
+              </svg>
+              Cronologia
+            </h2>
+            <button type="button" class="utility" id="clear-history" disabled>Svuota</button>
+          </div>
+          <div class="history-body">
+            <div class="empty" id="empty-history">
+              <span class="empty-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6m-6 4h6m-6 4h3"/>
+                </svg>
+              </span>
+              <p>Nessun calcolo</p>
+              <p>Qui ritrovi i risultati dei tuoi calcoli.</p>
+            </div>
+            <ol class="history-list" id="history-list" aria-label="Calcoli recenti" hidden></ol>
+          </div>
+        </aside>
+      </div>
+      <p class="hint"><kbd>Invio</kbd> Calcola <span aria-hidden="true">·</span> <kbd>Esc</kbd> Azzera</p>
+    </main>
+  </div>
+
+  <dialog id="shortcuts" aria-labelledby="shortcuts-title">
+    <div class="dialog-head">
+      <h2 id="shortcuts-title">Scorciatoie da tastiera</h2>
+      <form method="dialog"><button type="submit" class="utility" aria-label="Chiudi">✕</button></form>
+    </div>
+    <dl class="shortcuts">
+      <div><dt>Numeri</dt><dd><kbd>0–9</kbd></dd></div>
+      <div><dt>Decimali</dt><dd><kbd>,</kbd><kbd>.</kbd></dd></div>
+      <div><dt>Operatori</dt><dd><kbd>+</kbd><kbd>−</kbd><kbd>*</kbd><kbd>/</kbd><kbd>%</kbd><kbd>^</kbd></dd></div>
+      <div><dt>Parentesi</dt><dd><kbd>(</kbd><kbd>)</kbd></dd></div>
+      <div><dt>Radice quadrata</dt><dd><kbd>R</kbd></dd></div>
+      <div><dt>Calcola</dt><dd><kbd>Invio</kbd><kbd>=</kbd></dd></div>
+      <div><dt>Cancella ultimo carattere</dt><dd><kbd>Backspace</kbd></dd></div>
+      <div><dt>Azzera</dt><dd><kbd>Esc</kbd></dd></div>
+    </dl>
+  </dialog>
+
+  <script>
+    "use strict";
+
+    const numberPattern = /^(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?/i;
+    const trailingNumber = /(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
+    const operators = "+-*/^";
+    const maxLength = 240;
+
+    function evaluate(expression) {
+      let cursor = 0;
+      const peek = () => expression[cursor] || "";
+      const consume = () => expression[cursor++];
+      const take = symbol => peek() === symbol && Boolean(consume());
+      const value = (number, percent = false) => {
+        if (!Number.isFinite(number)) throw new Error("Risultato fuori intervallo");
+        return { number, percent };
+      };
+
+      function atom() {
+        if (take("(")) {
+          const result = sum();
+          if (!take(")")) throw new Error("Chiudi le parentesi");
+          return result;
+        }
+
+        if (take("√")) {
+          if (peek() !== "(") throw new Error("Manca il valore della radice");
+          const radicand = atom().number;
+          if (radicand < 0) throw new Error("Radice di un numero negativo");
+          return value(Math.sqrt(radicand));
+        }
+
+        const match = expression.slice(cursor).match(numberPattern);
+        if (!match) throw new Error("Completa l’espressione");
+        cursor += match[0].length;
+        return value(Number(match[0]));
+      }
+
+      function power() {
+        let result = atom();
+        while (peek() === "%" || peek() === "²") {
+          result = consume() === "%"
+            ? value(result.number / 100, true)
+            : value(result.number ** 2);
+        }
+        if (take("^")) {
+          const exponent = signed().number;
+          const resultOfPower = result.number ** exponent;
+          if (Number.isNaN(resultOfPower)) throw new Error("Potenza fuori dai numeri reali");
+          result = value(resultOfPower);
+        }
+        return result;
+      }
+
+      function signed() {
+        if (take("+")) return signed();
+        if (!take("-")) return power();
+        const result = signed();
+        return value(-result.number, result.percent);
+      }
+
+      function product() {
+        let result = signed();
+        while (peek() === "*" || peek() === "/") {
+          const operator = consume();
+          const right = signed().number;
+          if (operator === "/" && right === 0) throw new Error("Divisione per zero");
+          result = value(operator === "*" ? result.number * right : result.number / right);
+        }
+        return result;
+      }
+
+      function sum() {
+        let result = product();
+        while (peek() === "+" || peek() === "-") {
+          const operator = consume();
+          const right = product();
+          // A direct percentage in a sum uses the value on its left as the base.
+          const amount = right.percent ? result.number * right.number : right.number;
+          result = value(operator === "+" ? result.number + amount : result.number - amount);
+        }
+        return result;
+      }
+
+      const result = sum().number;
+      if (cursor !== expression.length) throw new Error("Controlla l’espressione");
+      const rounded = Number(result.toPrecision(15));
+      return Number.isFinite(rounded) ? rounded : result;
+    }
+
+    const display = document.querySelector("#display");
+    const previousExpression = document.querySelector("#previous-expression");
+    const errorMessage = document.querySelector("#error");
+    const status = document.querySelector("#status");
+    const historyList = document.querySelector("#history-list");
+    const emptyHistory = document.querySelector("#empty-history");
+    const clearHistory = document.querySelector("#clear-history");
+    const copyResult = document.querySelector("#copy-result");
+    const shortcuts = document.querySelector("#shortcuts");
+    const storageKey = "calcolatrice-online.history";
+    const historyLimit = 25;
+
+    let input = "";
+    let resultExpression = "";
+    let completed = false;
+    let error = "";
+    let history = loadHistory();
+    let copyTimer;
+
+    function loadHistory() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(storageKey) || "[]");
+        if (!Array.isArray(saved)) return [];
+        return saved.filter(entry => entry && typeof entry.expression === "string"
+          && entry.expression.length <= maxLength && typeof entry.result === "number"
+          && Number.isFinite(entry.result)).slice(0, historyLimit);
+      } catch {
+        return [];
+      }
+    }
+
+    function saveHistory() {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(history));
+      } catch {
+        // The current page can still use the in-memory history.
+      }
+    }
+
+    function formatExpression(expression) {
+      return expression.replace(/e[+-]?\d+|[.*+\/-]/g, (symbol, position) => {
+        if (symbol.startsWith("e")) return symbol.replace("-", "−");
+        if (symbol === "-") return /[\d.)%²]/.test(expression[position - 1] || "") ? " − " : "−";
+        return { ".": ",", "*": " × ", "+": " + ", "/": " ÷ " }[symbol];
+      });
+    }
+
+    function announce(message) {
+      status.textContent = message;
+    }
+
+    function render() {
+      display.textContent = formatExpression(input || "0");
+      display.scrollLeft = display.scrollWidth;
+      previousExpression.textContent = resultExpression ? formatExpression(resultExpression) + " =" : "";
+      previousExpression.scrollLeft = previousExpression.scrollWidth;
+      errorMessage.textContent = error;
+      errorMessage.hidden = !error;
+      copyResult.disabled = !completed;
+    }
+
+    function renderHistory() {
+      emptyHistory.hidden = history.length !== 0;
+      historyList.hidden = history.length === 0;
+      clearHistory.disabled = history.length === 0;
+
+      historyList.replaceChildren(...history.map((entry, index) => {
+        const row = document.createElement("li");
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "history-item";
+        button.dataset.index = String(index);
+
+        const expression = document.createElement("span");
+        expression.className = "previous";
+        expression.textContent = formatExpression(entry.expression);
+        const answer = document.createElement("span");
+        answer.className = "answer";
+        answer.textContent = formatExpression(String(entry.result));
+        button.setAttribute("aria-label", `Usa il risultato ${answer.textContent} di ${expression.textContent}`);
+        button.append(expression, answer);
+        row.append(button);
+        return row;
+      }));
+    }
+
+    function isOperator(character) {
+      return Boolean(character) && operators.includes(character);
+    }
+
+    function isUnaryAt(position) {
+      return position === 0 || /[+\-*/^(]/.test(input[position - 1]);
+    }
+
+    function startEditing(continueFromResult = true) {
+      error = "";
+      announce("");
+      if (!completed) return;
+      if (!continueFromResult) input = "";
+      resultExpression = "";
+      completed = false;
+    }
+
+    function hasOperand() {
+      return /[\d.)%²]$/.test(input);
+    }
+
+    function append(symbol) {
+      startEditing(isOperator(symbol) || symbol === "%" || symbol === "²");
+      const last = input.at(-1);
+      if (isOperator(symbol)) {
+        if (hasOperand()) {
+          input += symbol;
+        } else if (symbol === "-" && (last !== "-" || !isUnaryAt(input.length - 1))) {
+          input += symbol;
+        } else if (isOperator(last)) {
+          const index = input.length - 1;
+          if (!isUnaryAt(index)) input = input.slice(0, index) + symbol;
+          else if (isOperator(input[index - 1]) && !isUnaryAt(index - 1)) {
+            input = input.slice(0, index - 1) + symbol;
+          }
+        }
+        return;
+      }
+
+      if (symbol === "(") {
+        input += hasOperand() ? "*(" : "(";
+      } else if (symbol === ")") {
+        if (hasOperand() && openParentheses() > 0) input += ")";
+      } else if (symbol === "%" || symbol === "²") {
+        if (hasOperand() && last !== symbol) input += symbol;
+      } else if (symbol === ".") {
+        const currentNumber = input.match(trailingNumber)?.[0];
+        if (currentNumber?.includes(".") || currentNumber?.includes("e")) return;
+        if (/[)%²]$/.test(input)) input += "*0.";
+        else input += currentNumber ? "." : "0.";
+      } else {
+        if (/[)%²]$/.test(input)) input += "*";
+        input += symbol;
+      }
+    }
+
+    function openParentheses() {
+      let count = 0;
+      for (const character of input) {
+        if (character === "(") count++;
+        if (character === ")") count--;
+      }
+      return count;
+    }
+
+    function operandStart() {
+      const end = input.replace(/[%²]+$/, "").length;
+      if (input[end - 1] !== ")") {
+        const match = input.slice(0, end).match(trailingNumber);
+        return match ? end - match[0].length : end;
+      }
+
+      let depth = 1;
+      let start = end - 2;
+      while (start >= 0 && depth > 0) {
+        if (input[start] === ")") depth++;
+        if (input[start] === "(") depth--;
+        if (depth > 0) start--;
+      }
+      return input[start - 1] === "√" ? start - 1 : start;
+    }
+
+    function toggleSign() {
+      startEditing();
+      const start = operandStart();
+      if (input[start - 1] === "-" && isUnaryAt(start - 1)) {
+        input = input.slice(0, start - 1) + input.slice(start);
+      } else {
+        input = input.slice(0, start) + "-" + input.slice(start);
+      }
+    }
+
+    function addRoot() {
+      startEditing();
+      if (!hasOperand()) {
+        input += "√(";
+        return;
+      }
+
+      let start = operandStart();
+      if (input[start - 1] === "-" && isUnaryAt(start - 1)) start--;
+      input = input.slice(0, start) + "√(" + input.slice(start) + ")";
+    }
+
+    function calculate() {
+      if (!input || completed) return;
+      const expression = input + ")".repeat(openParentheses());
+      try {
+        const result = evaluate(expression);
+        history.unshift({ expression, result });
+        history = history.slice(0, historyLimit);
+        saveHistory();
+        renderHistory();
+        resultExpression = expression;
+        input = String(result);
+        completed = true;
+        error = "";
+        announce(`Risultato ${formatExpression(input)}`);
+      } catch (problem) {
+        error = problem.message;
+        announce(error);
+      }
+    }
+
+    function handleAction(action, symbol) {
+      const before = { input, completed, resultExpression };
+      switch (action) {
+        case "equals":
+          calculate();
+          break;
+        case "clear":
+          startEditing(false);
+          input = "";
+          announce("Calcolatrice azzerata");
+          break;
+        case "backspace":
+          startEditing();
+          input = input.endsWith("√(") ? input.slice(0, -2) : input.slice(0, -1).replace(/e[+-]?$/, "");
+          break;
+        case "sign":
+          toggleSign();
+          break;
+        case "root":
+          addRoot();
+          break;
+        default:
+          append(symbol);
+      }
+      if (input.length > maxLength || input.length + openParentheses() > maxLength) {
+        ({ input, completed, resultExpression } = before);
+        error = "Espressione troppo lunga";
+        announce(error);
+      }
+      render();
+    }
+
+    document.querySelector("#keypad").addEventListener("click", event => {
+      const button = event.target.closest("button");
+      if (button) handleAction(button.dataset.action, button.dataset.value);
+    });
+
+    historyList.addEventListener("click", event => {
+      const button = event.target.closest("button[data-index]");
+      if (!button) return;
+      const entry = history[Number(button.dataset.index)];
+      resultExpression = entry.expression;
+      input = String(entry.result);
+      completed = true;
+      error = "";
+      announce(`Risultato caricato ${formatExpression(input)}`);
+      render();
+    });
+
+    clearHistory.addEventListener("click", () => {
+      history = [];
+      saveHistory();
+      renderHistory();
+      announce("Cronologia svuotata");
+    });
+
+    copyResult.addEventListener("click", async () => {
+      const result = input.replace(".", ",");
+      try {
+        await navigator.clipboard.writeText(result);
+        copyResult.dataset.copied = "";
+        clearTimeout(copyTimer);
+        copyTimer = setTimeout(() => delete copyResult.dataset.copied, 1300);
+        announce("Risultato copiato");
+      } catch {
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(display);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        announce("Risultato selezionato. Puoi copiarlo dal menu del browser.");
+      }
+    });
+    document.querySelector("#open-shortcuts").addEventListener("click", () => shortcuts.showModal());
+
+    const shortcutsByKey = {
+      Enter: "equals", "=": "equals", Escape: "clear", Delete: "clear",
+      Backspace: "backspace", r: "root", R: "root", "√": "root"
+    };
+
+    let keyboardEntry = false;
+    document.addEventListener("focusin", () => { keyboardEntry = false; });
+    document.addEventListener("pointerdown", () => { keyboardEntry = false; });
+    document.addEventListener("keydown", event => {
+      if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || shortcuts.open) return;
+      if (event.key === "Enter" && !keyboardEntry && event.target instanceof HTMLButtonElement
+        && event.target.matches(":focus-visible")) return;
+
+      const action = shortcutsByKey[event.key];
+      const symbol = ({ ",": ".", "×": "*", "÷": "/", "−": "-" })[event.key] || event.key;
+      if (action || /^[0-9.+\-*/^()%²]$/.test(symbol)) {
+        keyboardEntry = true;
+        event.preventDefault();
+        handleAction(action, symbol);
+      }
+    });
+
+    renderHistory();
+    render();
+  </script>
+</body>
+</html>
